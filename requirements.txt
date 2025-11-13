@@ -7,8 +7,10 @@
 # ────────────────────────────────────────────────────────────────────────────
 fastapi==0.104.1              # API 框架
 uvicorn==0.24.0               # ASGI 服务器
-pydantic==2.5.0               # 数据验证和序列化
-pydantic-settings==2.1.0      # Pydantic 配置管理
+# 注意: pydantic 已更新以支持 Python 3.13+
+# 如果遇到编译问题，确保已安装 Rust: brew install rust
+pydantic>=2.9.0               # 数据验证和序列化（支持 Python 3.13）
+pydantic-settings>=2.5.0      # Pydantic 配置管理（支持 Python 3.13）
 injector==0.21.0              # 依赖注入容器
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -33,15 +35,18 @@ hyperliquid-python-sdk        # Hyperliquid 官方 Python SDK
 httpx==0.25.2                 # HTTP 客户端（Hyperliquid 原生实现需要）
 
 # Hyperliquid/Lighter 签名依赖
-eth-account==0.10.0           # 以太坊账户管理和签名
-eth-typing==3.5.2             # 以太坊类型定义
-eth-utils==2.3.1              # 以太坊工具函数
+# 注意: lighter-sdk 需要 eth-account>=0.13.4，已更新版本以兼容
+eth-account>=0.13.4           # 以太坊账户管理和签名（lighter-sdk 要求）
+eth-typing>=3.5.2             # 以太坊类型定义
+eth-utils>=2.3.1              # 以太坊工具函数
 
 # ────────────────────────────────────────────────────────────────────────────
 # 📊 数据处理 (Data Processing)
 # ────────────────────────────────────────────────────────────────────────────
-pandas==2.1.3                 # 数据分析
-numpy==1.24.3                 # 数值计算
+# 注意: pandas 和 numpy 版本已更新以支持 Python 3.13+
+# 如果遇到编译问题，可以尝试: pip install pandas numpy --only-binary :all:
+pandas>=2.2.0                 # 数据分析（支持 Python 3.13）
+numpy>=1.26.0                 # 数值计算（支持 Python 3.13）
 
 # ────────────────────────────────────────────────────────────────────────────
 # 🖥️ 终端 UI (Terminal UI)
@@ -99,6 +104,7 @@ pytest-cov==4.1.0             # 测试覆盖率
 #
 # 5. 特殊依赖说明：
 #    - eth-account: Hyperliquid 和 Lighter 交易所需要（用于私钥签名）
+#      注意: lighter-sdk 要求 eth-account>=0.13.4，已更新版本要求
 #    - rich: 所有终端 UI 必需（网格系统、刷量系统、监控系统）
 #    - ccxt: 通用交易所库，用于 Binance、OKX、Hyperliquid 等（需要 >= 4.4.x）
 #    - hyperliquid-python-sdk: Hyperliquid 官方 SDK（可选，用于原生实现）

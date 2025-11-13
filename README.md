@@ -65,9 +65,54 @@
 - 支持的操作系统：Linux、macOS、Windows
 - 可选：tmux（用于多进程管理）
 
-### 安装依赖
+### 环境设置
+
+#### 方式 1：使用虚拟环境（推荐）
 
 ```bash
+# 运行自动设置脚本（创建虚拟环境并安装依赖）
+chmod +x setup_venv.sh
+./setup_venv.sh
+
+# 手动激活虚拟环境
+source .venv/bin/activate
+```
+
+#### 方式 2：自动激活虚拟环境（最方便）
+
+使用 `direnv` 可以在进入项目目录时自动激活虚拟环境：
+
+```bash
+# 1. 安装 direnv
+brew install direnv  # macOS
+# 或 apt install direnv  # Linux
+
+# 2. 在 ~/.zshrc 或 ~/.bashrc 中添加
+eval "$(direnv hook zsh)"  # 或 eval "$(direnv hook bash)"
+
+# 3. 重新加载 shell 配置
+source ~/.zshrc  # 或 source ~/.bashrc
+
+# 4. 进入项目目录时会自动激活虚拟环境
+cd /Users/yizhuolin/Dev/crypto-trading-open
+# 虚拟环境会自动激活！
+```
+
+#### 方式 3：直接安装（不推荐）
+
+```bash
+# ⚠️ 不推荐：直接安装到系统 Python
+pip install -r requirements.txt
+```
+
+### 安装依赖
+
+如果使用虚拟环境，请先激活：
+
+```bash
+# 激活虚拟环境（如果未使用 direnv）
+source .venv/bin/activate
+
 # 安装 Python 依赖
 pip install -r requirements.txt
 ```
