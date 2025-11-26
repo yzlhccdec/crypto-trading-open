@@ -4,20 +4,23 @@ MESA引擎交易所适配层演示脚本
 展示如何使用交易所适配器进行各种操作
 """
 
-import structlog
-from core.events.event_bus import EventBus
-from core.exchanges.models import OrderSide, OrderType, ExchangeType
-from core.exchanges.interface import ExchangeConfig
-from core.exchanges.factory import ExchangeFactory
-from core.exchanges.manager import ExchangeManager
 import asyncio
 import sys
 import os
+import yaml
+from pathlib import Path
 from decimal import Decimal
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 添加项目根目录到路径（必须在导入 core 模块之前）
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+import structlog
+from core.adapters.exchanges.models import OrderSide, OrderType, ExchangeType
+from core.adapters.exchanges.interface import ExchangeConfig
+from core.adapters.exchanges.factory import ExchangeFactory
+from core.adapters.exchanges.manager import ExchangeManager
 
 
 # 配置日志
@@ -41,8 +44,8 @@ class ExchangeAdapterDemo:
     """交易所适配层演示类"""
 
     def __init__(self):
-        self.event_bus = EventBus()
-        self.exchange_manager = ExchangeManager(self.event_bus)
+        # ExchangeManager 现在接受可选的 event_bus 参数，可以为 None
+        self.exchange_manager = ExchangeManager(event_bus=None)
         self.factory = ExchangeFactory()
 
     async def initialize(self):
@@ -66,7 +69,115 @@ class ExchangeAdapterDemo:
         logger.info("✅ 交易所管理器启动完成")
 
     def _get_demo_configs(self) -> Dict[str, ExchangeConfig]:
-        """获取演示用的交易所配置"""
+        """获取演示用的交易所配置（从配置文件加载，只加载 GRVT）"""
+        configs = {}
+        config_dir = Path(__file__).parent.parent / "config" / "exchanges"
+        
+        # 只加载 GRVT 交易所
+        exchange_id = 'grvt'
+        config_file = config_dir / f"{exchange_id}_config.yaml"
+        
+        if not config_file.exists():
+            logger.warning(f"⚠️ GRVT 配置文件不存在: {config_file}")
+            logger.info("💡 提示：请确保配置文件存在，或设置环境变量：")
+            logger.info("   - GRVT_PRIVATE_KEY")
+            logger.info("   - GRVT_API_KEY")
+            logger.info("   - GRVT_TRADING_ACCOUNT_ID")
+            logger.info("   - GRVT_ENV (可选，默认testnet)")
+            return configs
+        
+        try:
+            config = self._load_exchange_config_from_file(exchange_id, config_file)
+            if config:
+                configs[exchange_id] = config
+                logger.info(f"✅ 从配置文件加载: {exchange_id}")
+            else:
+                logger.warning(f"⚠️ GRVT 配置文件加载失败")
+        except Exception as e:
+            logger.error(f"❌ 加载 GRVT 配置失败: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+        
+        return configs
+    
+    def _load_exchange_config_from_file(self, exchange_id: str, config_file: Path) -> Optional[ExchangeConfig]:
+        """从YAML配置文件加载交易所配置"""
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config_data = yaml.safe_load(f)
+            
+            # 获取交易所配置块
+            exchange_data = config_data.get(exchange_id, {})
+            
+            # 检查是否启用
+            if not exchange_data.get('enabled', True):
+                logger.debug(f"{exchange_id} 未启用，跳过")
+                return None
+            
+            # 获取API配置
+            api_config = exchange_data.get('api_config', {})
+            auth_config = api_config.get('auth', {}) if api_config else {}
+            
+            # 优先使用环境变量，其次使用配置文件
+            api_key = os.getenv(f'{exchange_id.upper()}_API_KEY') or auth_config.get('api_key', '') or exchange_data.get('api_key', '')
+            api_secret = os.getenv(f'{exchange_id.upper()}_API_SECRET') or auth_config.get('api_secret', '') or auth_config.get('private_key', '') or exchange_data.get('api_secret', '')
+            
+            # 特殊处理GRVT
+            if exchange_id == 'grvt':
+                private_key = os.getenv('GRVT_PRIVATE_KEY') or auth_config.get('api_key_private_key', '') or api_secret
+                trading_account_id = os.getenv('GRVT_TRADING_ACCOUNT_ID') or auth_config.get('trading_account_id', '')
+                env = os.getenv('GRVT_ENV') or api_config.get('env', 'testnet')
+                
+                return ExchangeConfig(
+                    exchange_id='grvt',
+                    name=exchange_data.get('name', 'GRVT'),
+                    exchange_type=ExchangeType.PERPETUAL,
+                    api_key=api_key,
+                    api_secret=private_key,
+                    testnet=(env != 'prod'),
+                    enable_websocket=exchange_data.get('websocket', {}).get('enabled', True),
+                    extra_params={
+                        'api_key_private_key': private_key,
+                        'api_key': api_key,
+                        'trading_account_id': trading_account_id,
+                        'env': env,
+                        'endpoint_version': api_config.get('endpoint_version', 'v1'),
+                        'ws_stream_version': api_config.get('ws_stream_version', 'v1'),
+                    }
+                )
+            
+            # 处理其他交易所
+            exchange_type_str = exchange_data.get('type', 'perpetual').lower()
+            exchange_type = ExchangeType.PERPETUAL if 'perpetual' in exchange_type_str else ExchangeType.FUTURES if 'futures' in exchange_type_str else ExchangeType.SPOT
+            
+            # 获取API配置
+            api_base_config = exchange_data.get('api', {}) if 'api' in exchange_data else {}
+            
+            config = ExchangeConfig(
+                exchange_id=exchange_id,
+                name=exchange_data.get('name', exchange_id.upper()),
+                exchange_type=exchange_type,
+                api_key=api_key,
+                api_secret=api_secret,
+                testnet=exchange_data.get('testnet', False),
+                base_url=api_base_config.get('base_url') or api_config.get('base_url'),
+                ws_url=api_base_config.get('ws_url') or api_config.get('ws_url'),
+                enable_websocket=exchange_data.get('websocket', {}).get('enabled', True),
+                rate_limits=exchange_data.get('rate_limits', {}),
+                default_leverage=exchange_data.get('default_leverage', 1),
+                default_margin_mode=exchange_data.get('default_margin_mode', 'cross'),
+            )
+            
+            return config
+            
+        except Exception as e:
+            logger.error(f"加载 {exchange_id} 配置失败: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return None
+    
+    def _get_default_demo_configs(self) -> Dict[str, ExchangeConfig]:
+        """获取默认演示配置（当配置文件不存在时使用）"""
         return {
             'binance': ExchangeConfig(
                 exchange_id='binance',
@@ -89,17 +200,6 @@ class ExchangeAdapterDemo:
                 rate_limits={'requests_per_second': 5},
                 connect_timeout=30,
                 precision={'base': 6, 'quote': 6}
-            ),
-            'backpack': ExchangeConfig(
-                exchange_id='backpack',
-                name='Backpack Demo',
-                exchange_type=ExchangeType.PERPETUAL,
-                api_key='demo_api_key',
-                api_secret='demo_api_secret_in_hex',  # Backpack需要hex格式的私钥
-                testnet=True,
-                rate_limits={'requests_per_second': 8},
-                connect_timeout=30,
-                precision={'base': 8, 'quote': 8}
             )
         }
 

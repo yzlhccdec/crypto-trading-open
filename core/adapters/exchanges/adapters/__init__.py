@@ -11,6 +11,7 @@
    - OKX: 现货、永续合约、期货、期权交易所
    - EdgeX: 永续合约交易所
    - Lighter: 永续合约交易所
+   - GRVT: 永续合约交易所
 
    每个适配器都包含:
    - 完整的交易功能实现
@@ -25,6 +26,7 @@ from .binance import BinanceAdapter
 from .okx import OKXAdapter
 from .edgex import EdgeXAdapter
 from .lighter import LighterAdapter
+from .grvt import GrvtAdapter
 
 __all__ = [
     'HyperliquidAdapter',
@@ -32,5 +34,6 @@ __all__ = [
     'BinanceAdapter',
     'OKXAdapter',
     'EdgeXAdapter',
-    'LighterAdapter'
+    'LighterAdapter',
+    'GrvtAdapter'
 ]
